@@ -7,7 +7,6 @@ import { motion, AnimatePresence } from "framer-motion"
 import { useFormLogic } from "../hooks/useFormLogic"
 import EnhancedCalendar from "../components/EnhancedCalendar"
 import BackButton from "../components/BackButton"
-import emailjs from '@emailjs/browser'
 
 // Google Places API integration
 declare global {
@@ -29,11 +28,6 @@ const FormPage: React.FC = () => {
   const [showSuccessPopup, setShowSuccessPopup] = useState(false)
   const formRef = useRef<HTMLFormElement | null>(null)
   
-  // EmailJS configuration
-  const EMAILJS_SERVICE_ID = 'service_x11taf4'
-  const EMAILJS_TEMPLATE_ID = 'template_4tg9992'
-  const EMAILJS_PUBLIC_KEY = '0L9GiHV5o7ZV7otHQ'
-  const RECIPIENT_EMAIL = 'bilalsonofkhirsheed@gmail.com'
 
   const {
     ownerType,
@@ -72,10 +66,6 @@ const FormPage: React.FC = () => {
     }
   }, [])
 
-  // Initialize EmailJS
-  useEffect(() => {
-    emailjs.init(EMAILJS_PUBLIC_KEY)
-  }, [])
 
   // Debug calendar date
   useEffect(() => {
@@ -244,12 +234,57 @@ const FormPage: React.FC = () => {
     try {
       const formEl = formRef.current as HTMLFormElement
 
-      // Validate total upload size to keep UX reasonable (still upload externally)
-      const inputs = Array.from(formEl.querySelectorAll("input[type='file']")) as HTMLInputElement[]
-      const MAX_PER_FILE_MB = 10 // allow larger since uploading to external host
-      const MAX_TOTAL_MB = 30
+      // Validate all required fields
+      const requiredFields = [
+        { id: 'fullName', name: 'Full Name' },
+        { id: 'email', name: 'Email' },
+        { id: 'phoneNumber', name: 'Phone Number' },
+        { id: 'address', name: 'Address' },
+        { id: 'birthDate', name: 'Birth Date' },
+        { id: 'aaaMembershipId', name: 'AAA Membership ID' },
+        { id: 'ownerType', name: 'Ownership' },
+        { id: 'techId', name: 'Reference Code' }
+      ]
+
+      // Add form-specific required fields
+      if (formType === 'residential' || formType === 'commercial') {
+        requiredFields.push(
+          { id: 'propertyType', name: 'Property Type' },
+          { id: 'propertyAddress', name: 'Property Address' }
+        )
+      }
+
+      if (formType === 'auto') {
+        requiredFields.push(
+          { id: 'insurancePolicy', name: 'Insurance Policy Number' },
+          { id: 'vin', name: 'VIN' }
+        )
+      }
+
+      if (ownerType === 'other') {
+        requiredFields.push(
+          { id: 'ownerFullName', name: 'Owner\'s Name' },
+          { id: 'ownerPhone', name: 'Owner\'s Phone' }
+        )
+      }
+
+      // Check required fields
+      for (const field of requiredFields) {
+        const input = formEl.querySelector(`#${field.id}`) as HTMLInputElement | null
+        if (!input || !input.value.trim()) {
+          alert(`${field.name} is required. Please fill in all required fields.`)
+          setIsSubmitting(false)
+          return
+        }
+      }
+
+      // Validate file uploads
+      const fileInputs = Array.from(formEl.querySelectorAll("input[type='file']")) as HTMLInputElement[]
+      const MAX_PER_FILE_MB = 10
+      const MAX_TOTAL_MB = 50
       let totalBytes = 0
-      for (const input of inputs) {
+      
+      for (const input of fileInputs) {
         const file = input.files && input.files[0]
         if (!file) continue
         if (file.size > MAX_PER_FILE_MB * 1024 * 1024) {
@@ -259,6 +294,7 @@ const FormPage: React.FC = () => {
         }
         totalBytes += file.size
       }
+      
       if (totalBytes > MAX_TOTAL_MB * 1024 * 1024) {
         alert(`Total attachments exceed ${MAX_TOTAL_MB}MB. Please upload smaller files.`)
         setIsSubmitting(false)
@@ -269,111 +305,46 @@ const FormPage: React.FC = () => {
       const addressInput = formEl.querySelector("#address") as HTMLInputElement | null
       if (addressInput) addressInput.value = addressValue
 
-      // Gather basic fields
-      const fd = new FormData(formEl)
-      const formTypeSafe = (fd.get('form_type') as string) || (formType || '')
+      // Create FormData for backend submission
+      const formData = new FormData(formEl)
+      
+      // Add form type to form data
+      formData.append('form_type', formType || '')
 
-      // Helper to upload a single file to file.io
-      const uploadFile = async (file: File): Promise<string> => {
-        const form = new FormData()
-        form.append('file', file)
-        // expire in 14 days; you can adjust if needed
-        const res = await fetch('https://file.io/?expires=14d', {
-          method: 'POST',
-          body: form,
-        })
-        if (!res.ok) throw new Error('Upload failed')
-        const json = await res.json()
-        // file.io returns { success, link }
-        if (!json || !json.success || !json.link) throw new Error('Upload failed')
-        return json.link as string
-      }
-
-      // Upload known file inputs and collect URLs
-      const fileFieldNames = ['licenseFront', 'licenseBack', 'proofOfResidency', 'registration', 'licensePlate']
-      const uploadedUrls: Record<string, string> = {}
-      for (const name of fileFieldNames) {
-        const input = formEl.querySelector(`#${name}`) as HTMLInputElement | null
-        if (input && input.files && input.files[0]) {
-          try {
-            const url = await uploadFile(input.files[0])
-            uploadedUrls[name] = url
-          } catch (e) {
-            console.error('Upload error for', name, e)
-          }
+      // Submit to backend API
+      const response = await fetch('http://localhost:5000/api/submit-form', {
+        method: 'POST',
+        body: formData,
+        headers: {
+          'Accept': 'application/json',
         }
+      })
+
+      // Check if response is ok
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error('Server response error:', errorText)
+        throw new Error(`Server error: ${response.status} ${response.statusText}`)
       }
 
-      // Build compact template params (small payload < 50KB)
-      const messageLines: string[] = []
-      messageLines.push('Identity Verification Form Submission')
-      messageLines.push(`Form Type: ${formTypeSafe.toUpperCase()}`)
-      messageLines.push(`Full Name: ${fd.get('fullName') || ''}`)
-      messageLines.push(`Email: ${fd.get('email') || ''}`)
-      messageLines.push(`Phone: ${fd.get('phoneNumber') || ''}`)
-      messageLines.push(`Address: ${fd.get('address') || ''}`)
-      messageLines.push(`Birth Date: ${fd.get('birthDate') || ''}`)
-      messageLines.push(`AAA Membership ID: ${fd.get('aaaMembershipId') || ''}`)
-      messageLines.push(`Ownership: ${fd.get('ownerType') || ''}`)
-      if (formTypeSafe === 'residential' || formTypeSafe === 'commercial') {
-        messageLines.push(`Property Type: ${fd.get('propertyType') || ''}`)
-        messageLines.push(`Property Address: ${fd.get('propertyAddress') || ''}`)
-        messageLines.push(`Tech ID: ${fd.get('techId') || ''}`)
-      }
-      if (formTypeSafe === 'auto') {
-        messageLines.push(`Owner Name: ${fd.get('ownerFullName') || ''}`)
-        messageLines.push(`Owner Phone: ${fd.get('ownerPhone') || ''}`)
-        messageLines.push(`Insurance Policy: ${fd.get('insurancePolicy') || ''}`)
-        messageLines.push(`VIN: ${fd.get('vin') || ''}`)
-      }
-      messageLines.push('Files:')
-      if (uploadedUrls['licenseFront']) messageLines.push(`- License Front: ${uploadedUrls['licenseFront']}`)
-      if (uploadedUrls['licenseBack']) messageLines.push(`- License Back: ${uploadedUrls['licenseBack']}`)
-      if (uploadedUrls['proofOfResidency']) messageLines.push(`- Proof of Residency: ${uploadedUrls['proofOfResidency']}`)
-      if (uploadedUrls['registration']) messageLines.push(`- Registration: ${uploadedUrls['registration']}`)
-      if (uploadedUrls['licensePlate']) messageLines.push(`- License Plate: ${uploadedUrls['licensePlate']}`)
-      messageLines.push(`Submitted: ${new Date().toLocaleString()}`)
-
-      const compactMessage = messageLines.join('\n')
-
-      const templateParams: Record<string, string> = {
-        to_email: RECIPIENT_EMAIL,
-        subject: `New Identity Verification Form - ${formTypeSafe.toUpperCase()}`,
-        form_type: formTypeSafe.toUpperCase(),
-        fullName: (fd.get('fullName') as string) || '',
-        email: (fd.get('email') as string) || '',
-        phoneNumber: (fd.get('phoneNumber') as string) || '',
-        address: (fd.get('address') as string) || '',
-        birthDate: (fd.get('birthDate') as string) || '',
-        aaaMembershipId: (fd.get('aaaMembershipId') as string) || '',
-        ownerType: (fd.get('ownerType') as string) || '',
-        propertyType: (fd.get('propertyType') as string) || '',
-        propertyAddress: (fd.get('propertyAddress') as string) || '',
-        techId: (fd.get('techId') as string) || '',
-        ownerFullName: (fd.get('ownerFullName') as string) || '',
-        ownerPhone: (fd.get('ownerPhone') as string) || '',
-        aaaId: (fd.get('aaaId') as string) || '',
-        insurancePolicy: (fd.get('insurancePolicy') as string) || '',
-        vin: (fd.get('vin') as string) || '',
-        licenseFront_url: uploadedUrls['licenseFront'] || '',
-        licenseBack_url: uploadedUrls['licenseBack'] || '',
-        proofOfResidency_url: uploadedUrls['proofOfResidency'] || '',
-        registration_url: uploadedUrls['registration'] || '',
-        licensePlate_url: uploadedUrls['licensePlate'] || '',
-        submittedAt: new Date().toLocaleString(),
-        // Common EmailJS fields to guarantee content
-        message: compactMessage,
-        from_name: ((fd.get('fullName') as string) || 'User'),
-        reply_to: ((fd.get('email') as string) || ''),
+      // Try to parse JSON response
+      let result
+      try {
+        result = await response.json()
+      } catch (parseError) {
+        console.error('JSON parse error:', parseError)
+        throw new Error('Invalid response from server')
       }
 
-      // Send a lightweight payload
-      await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, templateParams)
+      if (result.success) {
+        setShowSuccessPopup(true)
+      } else {
+        throw new Error(result.message || 'Form submission failed')
+      }
 
-      setShowSuccessPopup(true)
     } catch (error) {
-      console.error('EmailJS Error:', error)
-      alert('Failed to send email. Please try again.')
+      console.error('Form submission error:', error)
+      alert(`Failed to submit form: ${error instanceof Error ? error.message : 'Unknown error'}`)
     } finally {
       setIsSubmitting(false)
     }
@@ -408,8 +379,6 @@ const FormPage: React.FC = () => {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6 }}
       >
-        <input type="hidden" name="to_email" value={RECIPIENT_EMAIL} />
-        <input type="hidden" name="subject" value={`New Identity Verification Form - ${formType?.toUpperCase() || ''}`} />
         <input type="hidden" name="form_type" value={formType || ''} />
         <motion.h2
           id="formTitle"
@@ -518,6 +487,7 @@ const FormPage: React.FC = () => {
               placeholder="(000) 000-0000"
               pattern="[0-9]*"
               inputMode="numeric"
+              required
               style={{ paddingLeft: "3rem" }}
             />
           </div>
@@ -532,7 +502,7 @@ const FormPage: React.FC = () => {
           <label htmlFor="email">Email:</label>
           <div className="input-wrapper">
             <i className="fas fa-envelope input-icon"></i>
-            <input type="email" id="email" name="email" placeholder="your@email.com" style={{ paddingLeft: "3rem" }} />
+            <input type="email" id="email" name="email" placeholder="your@email.com" required style={{ paddingLeft: "3rem" }} />
           </div>
         </motion.div>
 
@@ -551,6 +521,7 @@ const FormPage: React.FC = () => {
               name="birthDate"
               placeholder="Select your birth date"
               readOnly
+              required
               onClick={() => toggleCalendar("birth")}
               style={{ paddingLeft: "3rem", cursor: "pointer" }}
             />
@@ -584,6 +555,7 @@ const FormPage: React.FC = () => {
               id="aaaMembershipId"
               name="aaaMembershipId"
               placeholder="Enter your AAA membership ID"
+              required
               style={{ paddingLeft: "3rem" }}
             />
           </div>
@@ -599,7 +571,7 @@ const FormPage: React.FC = () => {
           <label htmlFor="ownerType">Ownership:</label>
           <div className="input-wrapper">
             <i className="fas fa-user-tag input-icon"></i>
-            <select id="ownerType" name="ownerType" onChange={handleOwnerTypeChange} style={{ paddingLeft: "3rem" }}>
+            <select id="ownerType" name="ownerType" onChange={handleOwnerTypeChange} required style={{ paddingLeft: "3rem" }}>
               <option value="">Select ownership type...</option>
               <option value="myself">Myself</option>
               <option value="other">Other</option>
@@ -623,6 +595,7 @@ const FormPage: React.FC = () => {
                   id="ownerFullName"
                   name="ownerFullName"
                   placeholder="Owner's full name"
+                  required
                   style={{ paddingLeft: "3rem" }}
                 />
               </div>
@@ -638,6 +611,7 @@ const FormPage: React.FC = () => {
                   pattern="[0-9]*"
                   inputMode="numeric"
                   placeholder="(000) 000-0000"
+                  required
                   style={{ paddingLeft: "3rem" }}
                 />
               </div>
@@ -657,6 +631,7 @@ const FormPage: React.FC = () => {
                   id="insurancePolicy"
                   name="insurancePolicy"
                   placeholder="Enter your insurance policy number"
+                  required
                   style={{ paddingLeft: "3rem" }}
                 />
               </div>
@@ -672,6 +647,7 @@ const FormPage: React.FC = () => {
                   name="vin"
                   placeholder="Enter 17-character VIN"
                   maxLength={17}
+                  required
                   style={{ paddingLeft: "3rem" }}
                 />
               </div>
@@ -679,13 +655,17 @@ const FormPage: React.FC = () => {
 
 
             <div className="file-upload-container">
-              <label htmlFor="registration">Registration (file upload):</label>
+              <label htmlFor="registration" className="upload-label">
+                <i className="fas fa-file-upload input-icon"></i>
+                Registration (file upload)
+              </label>
               <input
                 type="file"
                 id="registration"
                 name="registration"
                 accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
                 onChange={handleFileUpload}
+                className="file-input"
               />
               {filePreviews["registration"] && (
                 <motion.div
@@ -702,13 +682,17 @@ const FormPage: React.FC = () => {
             </div>
 
             <div className="file-upload-container">
-              <label htmlFor="licensePlate">License Plate Photo:</label>
+              <label htmlFor="licensePlate" className="upload-label">
+                <i className="fas fa-camera input-icon"></i>
+                License Plate Photo
+              </label>
               <input
                 type="file"
                 id="licensePlate"
                 name="licensePlate"
                 accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
                 onChange={handleFileUpload}
+                className="file-input"
               />
               {filePreviews["licensePlate"] && (
                 <motion.div
@@ -733,7 +717,7 @@ const FormPage: React.FC = () => {
               <label htmlFor="propertyType">Property Type:</label>
               <div className="input-wrapper">
                 <i className="fas fa-building input-icon"></i>
-                <select id="propertyType" name="propertyType" style={{ paddingLeft: "3rem" }}>
+                <select id="propertyType" name="propertyType" required style={{ paddingLeft: "3rem" }}>
                   <option value="">Select property type...</option>
                   <option value="singleFamily">Single-family</option>
                   <option value="condo">Condo</option>
@@ -745,9 +729,25 @@ const FormPage: React.FC = () => {
               </div>
             </div>
 
+            <div className="form-group">
+              <label htmlFor="propertyAddress">Property Address:</label>
+              <div className="input-wrapper">
+                <i className="fas fa-map-marker-alt input-icon"></i>
+                <input
+                  type="text"
+                  id="propertyAddress"
+                  name="propertyAddress"
+                  placeholder="Enter property address"
+                  required
+                  style={{ paddingLeft: "3rem" }}
+                />
+              </div>
+            </div>
+
             <div className="file-upload-container">
-              <label htmlFor="proofOfResidency">
-                Proof of Residency:
+              <label htmlFor="proofOfResidency" className="upload-label">
+                <i className="fas fa-home input-icon"></i>
+                Proof of Residency
                 <br />
                 <small>(e.g., utility bill, lease agreement)</small>
               </label>
@@ -757,6 +757,7 @@ const FormPage: React.FC = () => {
                 name="proofOfResidency"
                 accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
                 onChange={handleFileUpload}
+                className="file-input"
               />
               {filePreviews["proofOfResidency"] && (
                 <motion.div
@@ -865,35 +866,29 @@ const FormPage: React.FC = () => {
         </motion.div>
 
         <motion.div
-          className="bottomButtonContainer form-buttons"
+          className="form-buttons"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 1.25 }}
-          style={{ display: "flex", gap: "1rem", marginTop: "1rem" }}
         >
           <motion.button
             type="button"
+            className="back-button-form"
             onClick={handleBackClick}
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
-            style={{
-              background: "var(--border-medium)",
-              color: "var(--text-primary)",
-              flex: 1,
-            }}
           >
-            <i className="fas fa-arrow-left" style={{ marginRight: "0.5rem" }}></i>
+            <i className="fas fa-arrow-left"></i>
             Back
           </motion.button>
           <motion.button
             type="submit"
-            className="submitButton"
+            className="submit-button"
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
-            style={{ flex: 2 }}
             disabled={isSubmitting}
           >
-            <i className={`fas ${isSubmitting ? 'fa-spinner fa-spin' : 'fa-check'}`} style={{ marginRight: "0.5rem" }}></i>
+            <i className={`fas ${isSubmitting ? 'fa-spinner fa-spin' : 'fa-check'}`}></i>
             {isSubmitting ? 'Sending...' : 'Submit Verification'}
           </motion.button>
         </motion.div>
@@ -919,8 +914,8 @@ const FormPage: React.FC = () => {
               <div className="success-icon">
                 <i className="fas fa-check-circle"></i>
               </div>
-              <h3>Email Sent Successfully!</h3>
-              <p>Your verification form has been submitted and sent to the recipient.</p>
+              <h3>Data Submitted Successfully!</h3>
+              <p>Your verification form has been submitted successfully and sent via email to the recipient.</p>
               <motion.button
                 className="success-ok-button"
                 onClick={handleSuccessClose}

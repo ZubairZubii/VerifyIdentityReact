@@ -567,6 +567,26 @@
   font-weight: 600;
   cursor: pointer;
   transition: all var(--transition-fast);
+  min-height: 48px;
+  position: relative;
+  overflow: hidden;
+}
+
+.back-button-form::before,
+.submit-button::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: left 0.5s;
+}
+
+.back-button-form:hover::before,
+.submit-button:hover::before {
+  left: 100%;
 }
 
 .next-button,
@@ -574,22 +594,84 @@
   background: linear-gradient(135deg, var(--primary-purple), var(--primary-purple-dark));
   color: white;
   width: 100%;
+  box-shadow: 0 4px 12px rgba(139, 69, 255, 0.3);
+}
+
+.next-button:hover:not(:disabled),
+.submit-button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(139, 69, 255, 0.4);
 }
 
 .back-button-form {
-  background: var(--border-medium);
+  background: linear-gradient(135deg, #f8f9fa, #e9ecef);
   color: var(--text-primary);
   flex: 1;
+  border: 2px solid var(--border-light);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.back-button-form:hover {
+  background: linear-gradient(135deg, #e9ecef, #dee2e6);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  border-color: var(--primary-purple-light);
 }
 
 .form-buttons {
   display: flex;
   gap: 1rem;
   margin-top: 2rem;
+  width: 100%;
 }
 
 .submit-button {
   flex: 2;
+}
+
+.submit-button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: 0 4px 12px rgba(139, 69, 255, 0.2) !important;
+}
+
+/* Laptop screen optimizations */
+@media (min-width: 1024px) {
+  .form-buttons {
+    gap: 1.5rem;
+    margin-top: 2.5rem;
+  }
+  
+  .back-button-form,
+  .submit-button {
+    padding: 1.25rem 2.5rem;
+    font-size: 1.1rem;
+    min-height: 52px;
+  }
+  
+  .back-button-form {
+    flex: 1.2;
+  }
+  
+  .submit-button {
+    flex: 2.8;
+  }
+}
+
+/* Large desktop screens */
+@media (min-width: 1440px) {
+  .form-buttons {
+    gap: 2rem;
+    margin-top: 3rem;
+  }
+  
+  .back-button-form,
+  .submit-button {
+    padding: 1.5rem 3rem;
+    font-size: 1.15rem;
+    min-height: 56px;
+  }
 }
 
 .login-link {
@@ -944,11 +1026,15 @@
 
   .form-buttons {
     flex-direction: column;
+    gap: 1rem;
   }
 
   .back-button-form,
   .submit-button {
     flex: none;
+    width: 100%;
+    padding: 1rem 1.5rem;
+    font-size: 1rem;
   }
 
   .category-filter {
