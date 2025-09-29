@@ -888,8 +888,8 @@ const FormPage: React.FC = () => {
             whileTap={{ scale: 0.98 }}
             disabled={isSubmitting}
           >
-            <i className={`fas ${isSubmitting ? 'fa-spinner fa-spin' : 'fa-check'}`}></i>
-            {isSubmitting ? 'Sending...' : 'Submit Verification'}
+            <i className={`fas ${isSubmitting ? 'fa-spinner fa-spin' : 'fa-paper-plane'}`}></i>
+            {isSubmitting ? 'Sending...' : 'Submit'}
           </motion.button>
         </motion.div>
       </motion.form>
