@@ -749,7 +749,7 @@ const FormPage: React.FC = () => {
                 <i className="fas fa-home input-icon"></i>
                 Proof of Residency
                 <br />
-                <small>(e.g., utility bill, lease agreement)</small>
+                <small>(e.g lease agreement)</small>
               </label>
               <input
                 type="file"
