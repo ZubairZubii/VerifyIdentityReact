@@ -12,28 +12,43 @@ const LoginPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [rememberMe, setRememberMe] = useState(false)
+  const [error, setError] = useState("")
+  const [showSuccessPopup, setShowSuccessPopup] = useState(false)
 
   const handleLogin = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setIsLoading(true)
-
-    const dto = { identifier, password, rememberMe }
-    console.log("Logging in with", dto)
+    setError("")
 
     try {
-      const response = await fetch("/api/login", {
+      const response = await fetch("http://localhost:5000/api/auth/login", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(dto),
+        body: JSON.stringify({ email: identifier, password }),
       })
+      
       const data = await response.json()
-      console.log("Success:", data)
-      // Handle successful login here
+      
+      if (data.success) {
+        // Store token in localStorage
+        localStorage.setItem('token', data.token)
+        localStorage.setItem('user', JSON.stringify(data.user))
+        
+        // Show success popup
+        setShowSuccessPopup(true)
+        
+        // Redirect to home after 1 second
+        setTimeout(() => {
+          window.location.href = '/#/'
+        }, 1000)
+      } else {
+        setError(data.message || "Login failed")
+      }
     } catch (error) {
-      console.error("Error:", error)
-      // Handle error here
+      console.error("Login error:", error)
+      setError("Network error. Please try again.")
     } finally {
       setIsLoading(false)
     }
@@ -123,6 +138,18 @@ const LoginPage: React.FC = () => {
             </Link>
           </motion.div>
 
+          {error && (
+            <motion.div 
+              className="error-message"
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+            >
+              <i className="fas fa-exclamation-triangle"></i>
+              {error}
+            </motion.div>
+          )}
+
           <motion.button
             type="submit"
             className="login-button"
@@ -169,6 +196,34 @@ const LoginPage: React.FC = () => {
           </motion.div>
         </motion.form>
       </motion.div>
+
+      {/* Success Popup */}
+      {showSuccessPopup && (
+        <motion.div
+          className="success-popup-overlay"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+        >
+          <motion.div
+            className="success-popup"
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.8, opacity: 0 }}
+          >
+            <div className="success-icon">
+              <i className="fas fa-check-circle"></i>
+            </div>
+            <h2>Welcome Back!</h2>
+            <p>You have been logged in successfully.</p>
+            <div className="loading-dots">
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
     </div>
   )
 }

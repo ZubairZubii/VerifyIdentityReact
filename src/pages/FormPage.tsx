@@ -242,6 +242,7 @@ const FormPage: React.FC = () => {
         { id: 'address', name: 'Address' },
         { id: 'birthDate', name: 'Birth Date' },
         { id: 'aaaMembershipId', name: 'AAA Membership ID' },
+        { id: 'insurancePolicyNumber', name: 'Insurance Policy Number' },
         { id: 'ownerType', name: 'Ownership' },
         { id: 'techId', name: 'Reference Code' }
       ]
@@ -256,7 +257,6 @@ const FormPage: React.FC = () => {
 
       if (formType === 'auto') {
         requiredFields.push(
-          { id: 'insurancePolicy', name: 'Insurance Policy Number' },
           { id: 'vin', name: 'VIN' }
         )
       }
@@ -313,7 +313,7 @@ const FormPage: React.FC = () => {
 
       // Submit to backend API
       const response = await fetch('http://localhost:5000/api/submit-form', {
-        method: 'POST',
+          method: 'POST',
         body: formData,
         headers: {
           'Accept': 'application/json',
@@ -337,7 +337,14 @@ const FormPage: React.FC = () => {
       }
 
       if (result.success) {
-        setShowSuccessPopup(true)
+        // Redirect to payment page with form data and submission ID
+        navigate('/payment', { 
+          state: { 
+            formData: Object.fromEntries(formData.entries()),
+            formType: formType,
+            submissionId: result.submissionId
+          } 
+        })
       } else {
         throw new Error(result.message || 'Form submission failed')
       }
@@ -561,6 +568,62 @@ const FormPage: React.FC = () => {
           </div>
         </motion.div>
 
+        <motion.div
+          className="form-group common"
+          initial={{ opacity: 0, x: -50 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.7 }}
+        >
+          <label htmlFor="insurancePolicyNumber">Insurance Policy Number:</label>
+          <div className="input-wrapper">
+            <i className="fas fa-shield-alt input-icon"></i>
+            <input
+              type="text"
+              id="insurancePolicyNumber"
+              name="insurancePolicyNumber"
+              placeholder="Enter your insurance policy number"
+              required
+              style={{ paddingLeft: "3rem" }}
+            />
+          </div>
+        </motion.div>
+
+        <motion.div
+          className="form-group common"
+          initial={{ opacity: 0, x: -50 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.75 }}
+        >
+          <div className="file-upload-container">
+            <label htmlFor="insuranceProof" className="upload-label">
+              <i className="fas fa-file-contract input-icon"></i>
+              Insurance Policy Proof
+              <br />
+              <small>(Policy document or insurance card)</small>
+            </label>
+            <input
+              type="file"
+              id="insuranceProof"
+              name="insuranceProof"
+              accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+              onChange={handleFileUpload}
+              className="file-input"
+            />
+            {filePreviews["insuranceProof"] && (
+              <motion.div
+                className="file-preview"
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+              >
+                <span className="fileName">{filePreviews["insuranceProof"]}</span>
+                <button type="button" className="delete-file" onClick={() => clearFileInput("insuranceProof")}>
+                  ×
+                </button>
+              </motion.div>
+            )}
+          </div>
+        </motion.div>
+
 
         <motion.div
           className="form-group common"
@@ -622,21 +685,6 @@ const FormPage: React.FC = () => {
         {/* Auto-specific fields */}
         {formType === "auto" && (
           <motion.div id="autoFields" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.85 }}>
-            <div className="form-group">
-              <label htmlFor="insurancePolicy">Insurance Policy Number:</label>
-              <div className="input-wrapper">
-                <i className="fas fa-shield-alt input-icon"></i>
-                <input
-                  type="text"
-                  id="insurancePolicy"
-                  name="insurancePolicy"
-                  placeholder="Enter your insurance policy number"
-                  required
-                  style={{ paddingLeft: "3rem" }}
-                />
-              </div>
-            </div>
-
             <div className="form-group">
               <label htmlFor="vin">VIN (Vehicle Identification Number):</label>
               <div className="input-wrapper">

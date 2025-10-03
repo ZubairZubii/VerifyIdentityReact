@@ -8,6 +8,18 @@
   box-sizing: border-box;
 }
 
+/* Hide Stripe branding globally */
+[data-testid="stripe-brand-link"],
+a[href*="stripe.com"][target="_blank"],
+div[style*="position: fixed"][style*="bottom"][style*="right"][style*="z-index"] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  position: absolute !important;
+  left: -9999px !important;
+  top: -9999px !important;
+}
+
 :root {
   /* Purple and White Theme */
   --primary-purple: #8b5cf6;

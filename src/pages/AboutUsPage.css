@@ -67,19 +67,27 @@
   
   .stats-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 2rem;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1.5rem;
     margin-bottom: 4rem;
+    max-width: 1000px;
+    margin-left: auto;
+    margin-right: auto;
   }
   
   .stat-card {
     background: var(--bg-card);
-    padding: 2rem;
+    padding: 1.5rem 1rem;
     border-radius: 1.5rem;
     text-align: center;
     box-shadow: var(--shadow-md);
     border: 2px solid transparent;
     transition: all var(--transition-normal);
+    min-height: 140px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
   }
   
   .stat-card:hover {
@@ -88,16 +96,20 @@
   }
   
   .stat-number {
-    font-size: 3rem;
+    font-size: 2.5rem;
     font-weight: 800;
     color: var(--primary-purple);
     margin-bottom: 0.5rem;
+    line-height: 1;
   }
   
   .stat-label {
-    font-size: 1.1rem;
+    font-size: 1rem;
     color: var(--text-secondary);
     font-weight: 500;
+    line-height: 1.2;
+    word-wrap: break-word;
+    hyphens: auto;
   }
   
   /* Content Sections */
@@ -366,6 +378,70 @@
   }
   
   /* Responsive Design */
+  /* Laptop and Desktop Screens */
+  @media (min-width: 1024px) and (max-width: 1440px) {
+    .stats-grid {
+      gap: 1.25rem;
+      max-width: 900px;
+    }
+    
+    .stat-card {
+      padding: 1.25rem 0.75rem;
+      min-height: 130px;
+    }
+    
+    .stat-number {
+      font-size: 2.25rem;
+    }
+    
+    .stat-label {
+      font-size: 0.95rem;
+    }
+  }
+  
+  /* Large Desktop Screens */
+  @media (min-width: 1441px) {
+    .stats-grid {
+      gap: 2rem;
+      max-width: 1100px;
+    }
+    
+    .stat-card {
+      padding: 2rem 1.5rem;
+      min-height: 160px;
+    }
+    
+    .stat-number {
+      font-size: 3rem;
+    }
+    
+    .stat-label {
+      font-size: 1.1rem;
+    }
+  }
+  
+  /* Tablet Screens */
+  @media (max-width: 1023px) and (min-width: 769px) {
+    .stats-grid {
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1.5rem;
+      max-width: 600px;
+    }
+    
+    .stat-card {
+      padding: 1.75rem 1.25rem;
+      min-height: 150px;
+    }
+    
+    .stat-number {
+      font-size: 2.75rem;
+    }
+    
+    .stat-label {
+      font-size: 1.05rem;
+    }
+  }
+  
   @media (max-width: 768px) {
     .about-us-container {
       padding: 4rem 1rem 2rem;

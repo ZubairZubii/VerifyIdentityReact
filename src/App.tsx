@@ -7,11 +7,17 @@ import Header from "./components/Header"
 import HamburgerMenu from "./components/HamburgerMenu"
 import CardsPage from "./pages/CardsPage"
 import FormPage from "./pages/FormPage"
+import PaymentPage from "./pages/PaymentPage"
+import PaymentSuccessPage from "./pages/PaymentSuccessPage"
+import AdminDashboardPage from "./pages/AdminDashboardPage"
 import AboutUsPage from "./pages/AboutUsPage"
 import LoginPage from "./pages/LoginPage"
 import JoinPage from "./pages/JoinPage"
 import HelpContactPage from "./pages/helpContactPage"
 import "./pages/AboutUsPage.css"
+import "./pages/PaymentPage.css"
+import "./pages/PaymentSuccessPage.css"
+import "./pages/AdminDashboardPage.css"
 
 const App: React.FC = () => {
   return (
@@ -45,6 +51,9 @@ const App: React.FC = () => {
               }
             />
             <Route path="/form" element={<FormPage />} />
+            <Route path="/payment" element={<PaymentPage />} />
+            <Route path="/payment-success" element={<PaymentSuccessPage />} />
+            <Route path="/admin-dashboard" element={<AdminDashboardPage />} />
             <Route path="/about" element={<AboutUsPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/join" element={<JoinPage />} />

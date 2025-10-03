@@ -11,6 +11,8 @@ const JoinPage: React.FC = () => {
     name: "",
     email: "",
     phoneNumber: "",
+    password: "",
+    confirmPassword: "",
     companyName: "",
     businessIndustry: "",
     companySize: "",
@@ -19,38 +21,77 @@ const JoinPage: React.FC = () => {
   })
   const [isLoading, setIsLoading] = useState(false)
   const [currentStep, setCurrentStep] = useState(1)
+  const [passwordError, setPasswordError] = useState("")
+  const [showSuccessPopup, setShowSuccessPopup] = useState(false)
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
     setFormData((prev) => ({ ...prev, [name]: value }))
+    
+    // Clear password error when user starts typing
+    if (name === 'password' || name === 'confirmPassword') {
+      setPasswordError("")
+    }
   }
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setIsLoading(true)
 
-    console.log("Joining with:", formData)
+    // Final validation
+    if (formData.password !== formData.confirmPassword) {
+      setPasswordError("Passwords do not match")
+      setIsLoading(false)
+      return
+    }
 
     try {
-      const response = await fetch("/api/join", {
+      const response = await fetch("http://localhost:5000/api/auth/register", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(formData),
       })
+      
       const data = await response.json()
-      console.log("Success:", data)
-      // Handle successful submission
+      
+      if (data.success) {
+        // Store token in localStorage
+        localStorage.setItem('token', data.token)
+        localStorage.setItem('user', JSON.stringify(data.user))
+        
+        // Show success popup
+        setShowSuccessPopup(true)
+        
+        // Redirect to home after 1 second
+        setTimeout(() => {
+          window.location.href = '/#/'
+        }, 1000)
+      } else {
+        setPasswordError(data.message || "Registration failed")
+      }
     } catch (error) {
-      console.error("Error:", error)
-      // Handle error
+      console.error("Registration error:", error)
+      setPasswordError("Network error. Please try again.")
     } finally {
       setIsLoading(false)
     }
   }
 
   const nextStep = () => {
+    // Validate passwords match before proceeding
+    if (currentStep === 1) {
+      if (formData.password !== formData.confirmPassword) {
+        setPasswordError("Passwords do not match")
+        return
+      }
+      if (formData.password.length < 8) {
+        setPasswordError("Password must be at least 8 characters long")
+        return
+      }
+    }
+    
     if (currentStep < 2) setCurrentStep(currentStep + 1)
   }
 
@@ -174,6 +215,52 @@ const JoinPage: React.FC = () => {
                   />
                 </div>
               </div>
+
+              <div className="form-group">
+                <label htmlFor="password">Password *</label>
+                <div className="input-wrapper">
+                  <i className="fas fa-lock input-icon"></i>
+                  <input
+                    type="password"
+                    id="password"
+                    name="password"
+                    value={formData.password}
+                    onChange={handleInputChange}
+                    placeholder="Create a secure password"
+                    minLength={8}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="confirmPassword">Confirm Password *</label>
+                <div className="input-wrapper">
+                  <i className="fas fa-lock input-icon"></i>
+                  <input
+                    type="password"
+                    id="confirmPassword"
+                    name="confirmPassword"
+                    value={formData.confirmPassword}
+                    onChange={handleInputChange}
+                    placeholder="Confirm your password"
+                    minLength={8}
+                    required
+                  />
+                </div>
+              </div>
+
+              {passwordError && (
+                <motion.div 
+                  className="error-message"
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                >
+                  <i className="fas fa-exclamation-triangle"></i>
+                  {passwordError}
+                </motion.div>
+              )}
 
               <motion.button
                 type="button"
@@ -327,6 +414,34 @@ const JoinPage: React.FC = () => {
           </motion.div>
         </motion.form>
       </motion.div>
+
+      {/* Success Popup */}
+      {showSuccessPopup && (
+        <motion.div
+          className="success-popup-overlay"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+        >
+          <motion.div
+            className="success-popup"
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.8, opacity: 0 }}
+          >
+            <div className="success-icon">
+              <i className="fas fa-check-circle"></i>
+            </div>
+            <h2>Welcome to Our Network!</h2>
+            <p>Your account has been created successfully.</p>
+            <div className="loading-dots">
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
     </div>
   )
 }
