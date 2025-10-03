@@ -7,7 +7,7 @@ const PaymentSuccessPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   
-  const { formData, paymentAmount } = location.state || {};
+  const { paymentAmount } = location.state || {};
 
   const handleBackToHome = () => {
     navigate('/');

@@ -69,15 +69,6 @@ const Calendar: React.FC<CalendarProps> = ({
     }
   }
 
-  // Check if year navigation is allowed
-  const canNavigateYear = (direction: number) => {
-    const currentDate = new Date()
-    const currentYear = currentDate.getFullYear()
-    const currentMonth = currentDate.getMonth()
-    
-    const newYear = year + direction
-    return !(newYear > currentYear || (newYear === currentYear && month > currentMonth))
-  }
 
   const isFutureDate = (day: number) => {
     const currentDate = new Date()
@@ -138,24 +129,21 @@ const Calendar: React.FC<CalendarProps> = ({
     }
   }
 
-  const navigateYear = (direction: number, event: React.MouseEvent) => {
-    event.preventDefault()
-    event.stopPropagation()
-    event.nativeEvent.stopImmediatePropagation()
-    
+  // Generate year options for dropdown
+  const generateYearOptions = () => {
     const currentDate = new Date()
     const currentYear = currentDate.getFullYear()
-    const currentMonth = currentDate.getMonth()
+    const years = []
     
-    const newYear = year + direction
-    
-    // Check if the new year is in the future
-    if (newYear > currentYear || (newYear === currentYear && month > currentMonth)) {
-      return // Don't navigate to future
+    // Generate years from current year down to 1900 (most recent first)
+    for (let year = currentYear; year >= 1900; year--) {
+      years.push(year)
     }
     
-    handleYearChange(type, { target: { value: newYear.toString() } } as any)
+    return years
   }
+
+  const yearOptions = generateYearOptions()
 
 
   const renderCalendarDays = () => {
@@ -274,41 +262,24 @@ const Calendar: React.FC<CalendarProps> = ({
             <div className="calendar-title">
               <div className="calendar-month-year">
                 <h3>
-                  {months[month]} {year}
+                  < {months[month]} {year} >
                 </h3>
                 <div 
-                  className="year-navigation"
+                  className="year-dropdown-container"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <motion.button
-                    className={`year-nav-btn ${!canNavigateYear(-1) ? 'disabled' : ''}`}
-                    onClick={canNavigateYear(-1) ? (e) => navigateYear(-1, e) : undefined}
-                    whileHover={canNavigateYear(-1) ? { scale: 1.1 } : {}}
-                    whileTap={canNavigateYear(-1) ? { scale: 0.9 } : {}}
-                    type="button"
-                    disabled={!canNavigateYear(-1)}
-                    title={!canNavigateYear(-1) ? "Cannot go to future years" : "Previous Year"}
+                  <select
+                    className="year-dropdown"
+                    value={year}
+                    onChange={(e) => handleYearChange(type, e)}
+                    title="Select Year"
                   >
-                    <i className="fas fa-angle-double-left"></i>
-                    <span className="sr-only">Previous Year</span>
-                  </motion.button>
-                  
-                  <div className="year-display">
-                    {year}
-                  </div>
-                  
-                  <motion.button
-                    className={`year-nav-btn ${!canNavigateYear(1) ? 'disabled' : ''}`}
-                    onClick={canNavigateYear(1) ? (e) => navigateYear(1, e) : undefined}
-                    whileHover={canNavigateYear(1) ? { scale: 1.1 } : {}}
-                    whileTap={canNavigateYear(1) ? { scale: 0.9 } : {}}
-                    type="button"
-                    disabled={!canNavigateYear(1)}
-                    title={!canNavigateYear(1) ? "Cannot go to future years" : "Next Year"}
-                  >
-                    <i className="fas fa-angle-double-right"></i>
-                    <span className="sr-only">Next Year</span>
-                  </motion.button>
+                    {yearOptions.map((yearOption) => (
+                      <option key={yearOption} value={yearOption}>
+                        {yearOption}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
             </div>

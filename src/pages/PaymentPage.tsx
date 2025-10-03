@@ -86,7 +86,14 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ onPaymentSuccess, onPaymentEr
         <PaymentElement 
           options={{
             layout: 'tabs',
-            paymentMethodOrder: ['card', 'apple_pay', 'google_pay'],
+            paymentMethodOrder: ['apple_pay', 'google_pay', 'card'],
+            fields: {
+              billingDetails: 'auto'
+            },
+            wallets: {
+              applePay: 'auto',
+              googlePay: 'auto'
+            }
           }}
         />
       </div>
@@ -239,6 +246,28 @@ const PaymentPage: React.FC = () => {
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.4 }}
         >
+          {/* Payment Methods Info */}
+          <div className="payment-methods-info">
+            <h3>Payment Methods</h3>
+            <p className="payment-methods-subtitle">
+              This payment is implemented via <strong>Google Pay</strong> and <strong>Apple Pay</strong> for secure and fast checkout
+            </p>
+            <div className="payment-methods-badges">
+              <div className="payment-badge apple-pay">
+                <i className="fab fa-apple-pay"></i>
+                <span>Apple Pay</span>
+              </div>
+              <div className="payment-badge google-pay">
+                <i className="fab fa-google-pay"></i>
+                <span>Google Pay</span>
+              </div>
+            </div>
+            <p className="payment-methods-note">
+              <strong>Apple Pay</strong> and <strong>Google Pay</strong> are available on supported devices for instant payment. 
+              Your payment information is secure and encrypted through Stripe.
+            </p>
+          </div>
+
           {isLoading ? (
             <div className="payment-loading">
               <div className="loading-spinner">
@@ -266,10 +295,17 @@ const PaymentPage: React.FC = () => {
                     '.Tab': {
                       border: '1px solid #e5e7eb',
                       boxShadow: 'none',
+                      borderRadius: '8px',
+                      margin: '0 4px',
                     },
                     '.Tab--selected': {
                       backgroundColor: '#8B45FF',
                       color: '#ffffff',
+                      border: '1px solid #8B45FF',
+                    },
+                    '.Tab:hover': {
+                      backgroundColor: '#f3f4f6',
+                      border: '1px solid #8B45FF',
                     },
                     '.Input': {
                       border: '1px solid #d1d5db',
@@ -279,6 +315,13 @@ const PaymentPage: React.FC = () => {
                       border: '1px solid #8B45FF',
                       boxShadow: '0 0 0 1px #8B45FF',
                     },
+                    '.TabLabel': {
+                      fontWeight: '600',
+                      fontSize: '14px',
+                    },
+                    '.TabIcon': {
+                      marginRight: '8px',
+                    }
                   }
                 }
               }}

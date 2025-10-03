@@ -686,15 +686,15 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.75rem;
-  padding: 1rem 2rem;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
   border: none;
   border-radius: 0.75rem;
-  font-size: 1rem;
-  font-weight: 600;
+  font-size: 0.9rem;
+  font-weight: 500;
   cursor: pointer;
   transition: all var(--transition-fast);
-  min-height: 48px;
+  min-height: 40px;
   position: relative;
   overflow: hidden;
   text-transform: none;
@@ -774,10 +774,10 @@
   
   .back-button-form,
   .submit-button {
-    padding: 1.25rem 2.5rem;
-    font-size: 1.1rem;
-    min-height: 52px;
-    gap: 0.875rem;
+    padding: 0.875rem 1.75rem;
+    font-size: 0.95rem;
+    min-height: 44px;
+    gap: 0.625rem;
   }
   
   .back-button-form {
@@ -790,8 +790,8 @@
   
   .back-button-form i,
   .submit-button i {
-    font-size: 1.1rem;
-    width: 18px;
+    font-size: 0.95rem;
+    width: 16px;
     text-align: center;
   }
 }
@@ -805,16 +805,16 @@
   
   .back-button-form,
   .submit-button {
-    padding: 1.5rem 3rem;
-    font-size: 1.15rem;
-    min-height: 56px;
-    gap: 1rem;
+    padding: 1rem 2rem;
+    font-size: 1rem;
+    min-height: 48px;
+    gap: 0.75rem;
   }
   
   .back-button-form i,
   .submit-button i {
-    font-size: 1.15rem;
-    width: 20px;
+    font-size: 1rem;
+    width: 18px;
     text-align: center;
   }
 }
@@ -1178,15 +1178,15 @@
   .submit-button {
     flex: none;
     width: 100%;
-    padding: 1rem 1.5rem;
-    font-size: 1rem;
-    gap: 0.75rem;
+    padding: 0.75rem 1.25rem;
+    font-size: 0.9rem;
+    gap: 0.5rem;
   }
   
   .back-button-form i,
   .submit-button i {
-    font-size: 1rem;
-    width: 16px;
+    font-size: 0.9rem;
+    width: 14px;
     text-align: center;
   }
 
