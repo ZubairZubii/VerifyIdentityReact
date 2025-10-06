@@ -262,7 +262,7 @@ const Calendar: React.FC<CalendarProps> = ({
             <div className="calendar-title">
               <div className="calendar-month-year">
                 <h3>
-                  < {months[month]} {year} >
+                  &lt; {months[month]} {year} &gt;
                 </h3>
                 <div 
                   className="year-dropdown-container"

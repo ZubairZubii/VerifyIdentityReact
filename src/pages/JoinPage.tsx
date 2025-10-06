@@ -64,7 +64,7 @@ const JoinPage: React.FC = () => {
         // Show success popup
         setShowSuccessPopup(true)
         
-        // Redirect to home after 1 second
+        // Redirect to home page after successful signup
         setTimeout(() => {
           window.location.href = '/#/'
         }, 1000)

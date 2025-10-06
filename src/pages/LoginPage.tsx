@@ -39,9 +39,15 @@ const LoginPage: React.FC = () => {
         // Show success popup
         setShowSuccessPopup(true)
         
-        // Redirect to home after 1 second
+        // Redirect based on user role
         setTimeout(() => {
-          window.location.href = '/#/'
+          if (data.user.role === 'admin') {
+            // Admin users go to dashboard
+            window.location.href = '/#/admin-dashboard'
+          } else {
+            // Regular users go to home page
+            window.location.href = '/#/'
+          }
         }, 1000)
       } else {
         setError(data.message || "Login failed")

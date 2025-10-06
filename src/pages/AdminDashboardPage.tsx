@@ -67,14 +67,18 @@ interface UserStats {
 const AdminDashboardPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'overview' | 'submissions' | 'users'>('overview');
   const [submissions, setSubmissions] = useState<FormSubmission[]>([]);
-  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [recentSubmissions, setRecentSubmissions] = useState<any[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [userStats, setUserStats] = useState<UserStats | null>(null);
+  const [overviewStats, setOverviewStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedSubmission, setSelectedSubmission] = useState<FormSubmission | null>(null);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [submissionDetails, setSubmissionDetails] = useState<FormSubmission | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [submissionToDelete, setSubmissionToDelete] = useState<string | null>(null);
+  const [userToDelete, setUserToDelete] = useState<string | null>(null);
   const [filters, setFilters] = useState({
     formType: '',
     status: '',
@@ -83,23 +87,85 @@ const AdminDashboardPage: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
-  // Fetch dashboard statistics
-  const fetchStats = async () => {
+  // Fetch recent submissions only
+  const fetchRecentSubmissions = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/stats/submissions', {
-        headers: {
-          'Authorization': `Bearer ${token}`
+      console.log('Fetching recent submissions...');
+      
+      // Try multiple endpoints to get data
+      let submissionsData = [];
+      
+      // First try the debug endpoint
+      try {
+        const debugResponse = await fetch('http://localhost:5000/api/debug/submissions');
+        if (debugResponse.ok) {
+          const debugData = await debugResponse.json();
+          submissionsData = debugData.submissions || [];
+          console.log('Got data from debug endpoint:', submissionsData.length);
         }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          setStats(data.data);
+      } catch (e) {
+        console.log('Debug endpoint failed, trying submissions endpoint...');
+      }
+      
+      // If debug failed, try the submissions endpoint
+      if (submissionsData.length === 0) {
+        try {
+          const submissionsResponse = await fetch('http://localhost:5000/api/submissions?limit=10');
+          if (submissionsResponse.ok) {
+            const submissionsDataResponse = await submissionsResponse.json();
+            submissionsData = submissionsDataResponse.data || submissionsDataResponse || [];
+            console.log('Got data from submissions endpoint:', submissionsData.length);
+          }
+        } catch (e) {
+          console.log('Submissions endpoint failed');
         }
       }
+      
+      // Get recent submissions (last 5)
+      const recent = submissionsData
+        .sort((a, b) => new Date(b.submittedAt || b.createdAt || 0) - new Date(a.submittedAt || a.createdAt || 0))
+        .slice(0, 5);
+      
+      setRecentSubmissions(recent);
+      console.log('Recent submissions set:', recent.length);
+      
     } catch (error) {
-      console.error('Error fetching stats:', error);
+      console.error('Error fetching recent submissions:', error);
+      setRecentSubmissions([]);
+    }
+  };
+
+  // Fetch overview statistics - Simple approach
+  const fetchOverviewStats = async () => {
+    try {
+      // Use the existing submissions data to calculate stats
+      const totalSubmissions = submissions.length;
+      const pendingSubmissions = submissions.filter(s => s.status === 'submitted').length;
+      const completedSubmissions = submissions.filter(s => s.status === 'completed').length;
+      
+      // Calculate total revenue from completed payments
+      const totalRevenue = submissions
+        .filter(s => s.paymentStatus === 'completed' && s.paymentAmount)
+        .reduce((sum, s) => sum + (s.paymentAmount || 0), 0);
+
+      const stats = {
+        totalSubmissions,
+        pendingSubmissions,
+        completedSubmissions,
+        totalRevenue
+      };
+
+      setOverviewStats(stats);
+      
+    } catch (error) {
+      console.error('Error calculating overview statistics:', error);
+      // Set fallback data
+      setOverviewStats({
+        totalSubmissions: 0,
+        pendingSubmissions: 0,
+        completedSubmissions: 0,
+        totalRevenue: 0
+      });
     }
   };
 
@@ -201,16 +267,28 @@ const AdminDashboardPage: React.FC = () => {
   const fetchUserStats = async () => {
     try {
       const token = localStorage.getItem('token');
+      console.log('Fetching user stats with token:', !!token);
+      
       const response = await fetch('http://localhost:5000/api/stats/users', {
         headers: {
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
         }
       });
+      
+      console.log('User stats API response status:', response.status);
+      
       if (response.ok) {
         const data = await response.json();
+        console.log('User stats API response data:', data);
         if (data.success) {
           setUserStats(data.data);
+        } else {
+          console.error('User stats API error:', data.message);
         }
+      } else {
+        const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
+        console.error('User stats API error:', errorData);
       }
     } catch (error) {
       console.error('Error fetching user stats:', error);
@@ -229,23 +307,33 @@ const AdminDashboardPage: React.FC = () => {
         ...(filters.search && { search: filters.search })
       });
 
+      console.log('Fetching users with params:', queryParams.toString());
+      console.log('Token available:', !!token);
+
       const response = await fetch(`http://localhost:5000/api/users?${queryParams}`, {
         headers: {
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
         }
       });
       
+      console.log('Users API response status:', response.status);
+      
       if (response.ok) {
         const data = await response.json();
+        console.log('Users API response data:', data);
         if (data.success) {
           setUsers(data.data);
           setCurrentPage(data.pagination.currentPage);
           setTotalPages(data.pagination.totalPages);
+          setError(null); // Clear any previous errors
         } else {
           setError(data.message || 'Failed to fetch users');
         }
       } else {
-        setError('Failed to fetch users');
+        const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
+        console.error('Users API error:', errorData);
+        setError(errorData.message || 'Failed to fetch users');
       }
     } catch (error) {
       console.error('Error fetching users:', error);
@@ -299,7 +387,7 @@ const AdminDashboardPage: React.FC = () => {
       if (response.ok) {
         setUsers(prev => prev.filter(user => user._id !== userId));
         setShowDeleteModal(false);
-        setSubmissionToDelete(null);
+        setUserToDelete(null);
         // Refresh stats
         fetchUserStats();
       } else {
@@ -311,11 +399,93 @@ const AdminDashboardPage: React.FC = () => {
     }
   };
 
+  // Fetch submission details
+  const fetchSubmissionDetails = async (submissionId: string) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`http://localhost:5000/api/submissions/${submissionId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setSubmissionDetails(data.data);
+          console.log('Submission details loaded:', data.data);
+        } else {
+          setError(data.message || 'Failed to load submission details');
+        }
+      } else {
+        const errorData = await response.json();
+        setError(errorData.message || 'Failed to load submission details');
+      }
+    } catch (error) {
+      console.error('Error fetching submission details:', error);
+      setError('Network error while loading submission details');
+    }
+  };
+
+  // Download attachment
+  const downloadAttachment = async (submissionId: string, fieldName: string, filename: string) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`http://localhost:5000/api/submissions/${submissionId}/download/${fieldName}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        // Get the blob from the response
+        const blob = await response.blob();
+        
+        // Create a download link
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        
+        // Clean up
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        
+        console.log('File downloaded successfully:', filename);
+      } else {
+        const errorData = await response.json();
+        setError(errorData.message || 'Failed to download file');
+      }
+    } catch (error) {
+      console.error('Error downloading file:', error);
+      setError('Network error while downloading file');
+    }
+  };
+
   useEffect(() => {
-    fetchStats();
+    fetchRecentSubmissions();
     fetchSubmissions();
     fetchUserStats();
   }, []);
+
+  // Update stats when submissions change
+  useEffect(() => {
+    if (submissions.length > 0) {
+      fetchOverviewStats();
+    } else {
+      // Set default stats even if no submissions
+      setOverviewStats({
+        totalSubmissions: 0,
+        pendingSubmissions: 0,
+        completedSubmissions: 0,
+        totalRevenue: 0
+      });
+    }
+  }, [submissions]);
+
 
   useEffect(() => {
     fetchSubmissions(1);
@@ -439,64 +609,107 @@ const AdminDashboardPage: React.FC = () => {
               transition={{ duration: 0.3 }}
               className="overview-content"
             >
-              {/* Stats Cards */}
-              <div className="stats-grid">
-                <div className="stat-card">
-                  <div className="stat-icon">
-                    <i className="fas fa-file-alt"></i>
+
+              {/* Statistics Section */}
+              <div className="statistics-section">
+                <h2>Dashboard Statistics</h2>
+                <div className="stats-grid">
+                  <div className="stat-card">
+                    <div className="stat-icon">
+                      <i className="fas fa-file-alt"></i>
+                    </div>
+                    <div className="stat-content">
+                      <h3>{overviewStats?.totalSubmissions || submissions.length || 0}</h3>
+                      <p>Total Submissions</p>
+                    </div>
                   </div>
-                  <div className="stat-info">
-                    <h3>{stats?.totalSubmissions || 0}</h3>
-                    <p>Total Submissions</p>
+
+                  <div className="stat-card">
+                    <div className="stat-icon">
+                      <i className="fas fa-hourglass-half"></i>
+                    </div>
+                    <div className="stat-content">
+                      <h3>{overviewStats?.pendingSubmissions || submissions.filter(s => s.status === 'submitted').length || 0}</h3>
+                      <p>Pending Review</p>
+                    </div>
+                  </div>
+
+                  <div className="stat-card">
+                    <div className="stat-icon">
+                      <i className="fas fa-check-circle"></i>
+                    </div>
+                    <div className="stat-content">
+                      <h3>{overviewStats?.completedSubmissions || submissions.filter(s => s.status === 'completed').length || 0}</h3>
+                      <p>Completed</p>
+                    </div>
+                  </div>
+
+                  <div className="stat-card">
+                    <div className="stat-icon">
+                      <i className="fas fa-chart-line"></i>
+                    </div>
+                    <div className="stat-content">
+                      <h3>${overviewStats?.totalRevenue ? (overviewStats.totalRevenue / 100).toFixed(2) : '0.00'}</h3>
+                      <p>Total Revenue</p>
+                    </div>
                   </div>
                 </div>
-                
-                {stats?.statsByType.map((typeStat) => (
-                  <div key={typeStat._id} className="stat-card">
-                    <div className="stat-icon">
-                      <i className={`fas ${getFormTypeIcon(typeStat._id)}`}></i>
-                    </div>
-                    <div className="stat-info">
-                      <h3>{typeStat.count}</h3>
-                      <p>{typeStat._id.charAt(0).toUpperCase() + typeStat._id.slice(1)} Forms</p>
-                      <div className="stat-breakdown">
-                        <span className="pending">{typeStat.pending} Pending</span>
-                        <span className="processing">{typeStat.processing} Processing</span>
-                        <span className="completed">{typeStat.completed} Completed</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
               </div>
 
               {/* Recent Submissions */}
               <div className="recent-submissions">
-                <h2>Recent Submissions</h2>
-                <div className="submissions-list">
-                  {stats?.recentSubmissions.map((submission) => (
-                    <div key={submission._id} className="submission-item">
-                      <div className="submission-icon">
-                        <i className={`fas ${getFormTypeIcon(submission.formType)}`}></i>
-                      </div>
-                      <div className="submission-info">
-                        <h4>{submission.fullName}</h4>
-                        <p>{submission.email}</p>
-                        <span className="form-type">{submission.formType}</span>
-                      </div>
-                      <div className="submission-status">
-                        <span 
-                          className="status-badge"
-                          style={{ backgroundColor: getStatusColor(submission.status) }}
-                        >
-                          {submission.status}
-                        </span>
-                        <span className="submission-date">
-                          {formatDate(submission.submittedAt)}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
+                <div className="recent-submissions-header">
+                  <h2>Recent Submissions</h2>
+                  <button 
+                    className="refresh-button"
+                    onClick={fetchRecentSubmissions}
+                    title="Refresh Recent Submissions"
+                  >
+                    <i className="fas fa-sync-alt"></i>
+                    Refresh
+                  </button>
                 </div>
+                
+                {recentSubmissions && recentSubmissions.length > 0 ? (
+                  <div className="submissions-list">
+                    {recentSubmissions.map((submission, index) => (
+                      <div key={submission._id || index} className="submission-item">
+                        <div className="submission-icon">
+                          <i className={`fas ${getFormTypeIcon(submission.formType)}`}></i>
+                        </div>
+                        <div className="submission-info">
+                          <h4>{submission.fullName || 'Unknown User'}</h4>
+                          <p>{submission.email || 'No email'}</p>
+                          <span className="form-type">{submission.formType || 'Unknown'}</span>
+                        </div>
+                        <div className="submission-status">
+                          <span 
+                            className="status-badge"
+                            style={{ backgroundColor: getStatusColor(submission.status || 'submitted') }}
+                          >
+                            {submission.status || 'submitted'}
+                          </span>
+                          <span className="submission-date">
+                            {formatDate(submission.submittedAt || submission.createdAt || new Date())}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="empty-state">
+                    <i className="fas fa-file-alt"></i>
+                    <h3>No Recent Submissions</h3>
+                    <p>No form submissions have been made yet.</p>
+                    <button 
+                      className="retry-button"
+                      onClick={fetchRecentSubmissions}
+                    >
+                      <i className="fas fa-sync-alt"></i>
+                      Refresh Data
+                    </button>
+                  </div>
+                )}
               </div>
             </motion.div>
           )}
@@ -613,13 +826,13 @@ const AdminDashboardPage: React.FC = () => {
                             <td>{formatDate(submission.submittedAt)}</td>
                             <td>
                               <div className="action-buttons">
-                                <button
-                                  className="view-btn"
-                                  onClick={() => setSelectedSubmission(submission)}
-                                  title="View Details"
-                                >
-                                  <i className="fas fa-eye"></i>
-                                </button>
+                      <button
+                        className="view-btn"
+                        onClick={() => fetchSubmissionDetails(submission._id)}
+                        title="View Details"
+                      >
+                        <i className="fas fa-eye"></i>
+                      </button>
                                 <button
                                   className="delete-btn"
                                   onClick={() => {
@@ -677,38 +890,6 @@ const AdminDashboardPage: React.FC = () => {
               transition={{ duration: 0.3 }}
               className="users-content"
             >
-              {/* User Statistics */}
-              <div className="stats-grid">
-                <div className="stat-card">
-                  <div className="stat-icon">
-                    <i className="fas fa-users"></i>
-                  </div>
-                  <div className="stat-info">
-                    <h3>{userStats?.totalUsers || 0}</h3>
-                    <p>Total Users</p>
-                  </div>
-                </div>
-                
-                <div className="stat-card">
-                  <div className="stat-icon">
-                    <i className="fas fa-user-check"></i>
-                  </div>
-                  <div className="stat-info">
-                    <h3>{userStats?.activeUsers || 0}</h3>
-                    <p>Active Users</p>
-                  </div>
-                </div>
-                
-                <div className="stat-card">
-                  <div className="stat-icon">
-                    <i className="fas fa-user-clock"></i>
-                  </div>
-                  <div className="stat-info">
-                    <h3>{userStats?.pendingUsers || 0}</h3>
-                    <p>Pending Users</p>
-                  </div>
-                </div>
-              </div>
 
               {/* Filters */}
               <div className="filters-section">
@@ -749,6 +930,29 @@ const AdminDashboardPage: React.FC = () => {
                 <div className="error-state">
                   <i className="fas fa-exclamation-triangle"></i>
                   <p>{error}</p>
+                  <button 
+                    className="retry-button"
+                    onClick={() => fetchUsers(1)}
+                  >
+                    <i className="fas fa-redo"></i>
+                    Retry
+                  </button>
+                </div>
+              ) : users.length === 0 ? (
+                <div className="empty-state">
+                  <i className="fas fa-users"></i>
+                  <h3>No Users Found</h3>
+                  <p>No users match your current filters. Try adjusting your search criteria.</p>
+                  <button 
+                    className="retry-button"
+                    onClick={() => {
+                      setFilters({ formType: '', status: '', search: '' });
+                      fetchUsers(1);
+                    }}
+                  >
+                    <i className="fas fa-refresh"></i>
+                    Clear Filters
+                  </button>
                 </div>
               ) : (
                 <>
@@ -774,8 +978,8 @@ const AdminDashboardPage: React.FC = () => {
                                   <i className="fas fa-user"></i>
                                 </div>
                                 <div className="user-details">
-                                  <div className="user-name">{user.name}</div>
-                                  <div className="user-email">{user.email}</div>
+                                  <div className="user-name">{user.name || 'Unknown'}</div>
+                                  <div className="user-email">{user.email || 'No email'}</div>
                                 </div>
                               </div>
                             </td>
@@ -788,7 +992,7 @@ const AdminDashboardPage: React.FC = () => {
                             <td>
                               <div className="role-cell">
                                 <i className={`fas ${getUserRoleIcon(user.role)}`}></i>
-                                {user.role}
+                                {user.role || 'user'}
                               </div>
                             </td>
                             <td>
@@ -812,7 +1016,7 @@ const AdminDashboardPage: React.FC = () => {
                               <div className="action-buttons">
                                 <button
                                   className="view-btn"
-                                  onClick={() => setSelectedSubmission(user as any)}
+                                  onClick={() => setSelectedUser(user)}
                                   title="View Details"
                                 >
                                   <i className="fas fa-eye"></i>
@@ -820,7 +1024,7 @@ const AdminDashboardPage: React.FC = () => {
                                 <button
                                   className="delete-btn"
                                   onClick={() => {
-                                    setSubmissionToDelete(user._id);
+                                    setUserToDelete(user._id);
                                     setShowDeleteModal(true);
                                   }}
                                   title="Delete User"
@@ -999,6 +1203,139 @@ const AdminDashboardPage: React.FC = () => {
         )}
       </AnimatePresence>
 
+      {/* User Details Modal */}
+      <AnimatePresence>
+        {selectedUser && (
+          <motion.div
+            className="modal-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setSelectedUser(null)}
+          >
+            <motion.div
+              className="modal-content user-modal"
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="modal-header">
+                <h2>User Details</h2>
+                <button
+                  className="close-btn"
+                  onClick={() => setSelectedUser(null)}
+                >
+                  <i className="fas fa-times"></i>
+                </button>
+              </div>
+              
+              <div className="modal-body">
+                <div className="user-details-header">
+                  <div className="user-avatar-large">
+                    <i className="fas fa-user"></i>
+                  </div>
+                  <div className="user-basic-info">
+                    <h3>{selectedUser.name || 'Unknown User'}</h3>
+                    <p className="user-email">{selectedUser.email || 'No email'}</p>
+                    <div className="user-status-badges">
+                      <span 
+                        className="role-badge"
+                        style={{ backgroundColor: getUserStatusColor(selectedUser.role) }}
+                      >
+                        <i className={`fas ${getUserRoleIcon(selectedUser.role)}`}></i>
+                        {selectedUser.role || 'user'}
+                      </span>
+                      <span 
+                        className="status-badge"
+                        style={{ backgroundColor: getUserStatusColor(selectedUser.status) }}
+                      >
+                        {selectedUser.status || 'pending'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="details-grid">
+                  <div className="detail-item">
+                    <label>Full Name:</label>
+                    <span>{selectedUser.name || 'Not provided'}</span>
+                  </div>
+                  
+                  <div className="detail-item">
+                    <label>Email:</label>
+                    <span>{selectedUser.email || 'Not provided'}</span>
+                  </div>
+                  
+                  <div className="detail-item">
+                    <label>Phone Number:</label>
+                    <span>{selectedUser.phoneNumber || 'Not provided'}</span>
+                  </div>
+                  
+                  <div className="detail-item">
+                    <label>Company Name:</label>
+                    <span>{selectedUser.companyName || 'Not provided'}</span>
+                  </div>
+                  
+                  <div className="detail-item">
+                    <label>Business Industry:</label>
+                    <span>{selectedUser.businessIndustry || 'Not provided'}</span>
+                  </div>
+                  
+                  <div className="detail-item">
+                    <label>Company Size:</label>
+                    <span>{selectedUser.companySize || 'Not provided'}</span>
+                  </div>
+                  
+                  <div className="detail-item">
+                    <label>Website:</label>
+                    <span>
+                      {selectedUser.website ? (
+                        <a href={selectedUser.website} target="_blank" rel="noopener noreferrer">
+                          {selectedUser.website}
+                        </a>
+                      ) : 'Not provided'}
+                    </span>
+                  </div>
+                  
+                  <div className="detail-item">
+                    <label>Description:</label>
+                    <span>{selectedUser.description || 'Not provided'}</span>
+                  </div>
+                  
+                  <div className="detail-item">
+                    <label>Email Verified:</label>
+                    <span className={selectedUser.isEmailVerified ? 'success' : 'error'}>
+                      {selectedUser.isEmailVerified ? 'Yes' : 'No'}
+                    </span>
+                  </div>
+                  
+                  <div className="detail-item">
+                    <label>Last Login:</label>
+                    <span>{selectedUser.lastLogin ? formatDate(selectedUser.lastLogin) : 'Never'}</span>
+                  </div>
+                  
+                  <div className="detail-item">
+                    <label>Login Count:</label>
+                    <span>{selectedUser.loginCount || 0}</span>
+                  </div>
+                  
+                  <div className="detail-item">
+                    <label>Account Created:</label>
+                    <span>{formatDate(selectedUser.createdAt)}</span>
+                  </div>
+                  
+                  <div className="detail-item">
+                    <label>Last Updated:</label>
+                    <span>{formatDate(selectedUser.updatedAt)}</span>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Delete Confirmation Modal */}
       <AnimatePresence>
         {showDeleteModal && (
@@ -1027,25 +1364,374 @@ const AdminDashboardPage: React.FC = () => {
               <div className="modal-footer">
                 <button
                   className="cancel-btn"
-                  onClick={() => setShowDeleteModal(false)}
+                  onClick={() => {
+                    setShowDeleteModal(false);
+                    setSubmissionToDelete(null);
+                    setUserToDelete(null);
+                  }}
                 >
                   Cancel
                 </button>
                 <button
                   className="delete-confirm-btn"
                   onClick={() => {
-                    if (submissionToDelete) {
-                      if (activeTab === 'users') {
-                        deleteUser(submissionToDelete);
-                      } else {
-                        deleteSubmission(submissionToDelete);
-                      }
+                    if (activeTab === 'users' && userToDelete) {
+                      deleteUser(userToDelete);
+                    } else if (activeTab === 'submissions' && submissionToDelete) {
+                      deleteSubmission(submissionToDelete);
                     }
                   }}
                 >
                   <i className="fas fa-trash"></i>
                   Delete
                 </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Submission Details Modal */}
+      <AnimatePresence>
+        {submissionDetails && (
+          <motion.div
+            className="modal-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setSubmissionDetails(null)}
+          >
+            <motion.div
+              className="modal-content submission-details-modal"
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="modal-header">
+                <h2>Submission Details</h2>
+                <button
+                  className="close-btn"
+                  onClick={() => setSubmissionDetails(null)}
+                >
+                  <i className="fas fa-times"></i>
+                </button>
+              </div>
+              
+              <div className="modal-body">
+                <div className="submission-details-header">
+                  <div className="submission-icon-large">
+                    <i className={`fas ${getFormTypeIcon(submissionDetails.formType)}`}></i>
+                  </div>
+                  <div className="submission-basic-info">
+                    <h3>{submissionDetails.fullName || 'Unknown User'}</h3>
+                    <p className="submission-email">{submissionDetails.email || 'No email'}</p>
+                    <div className="submission-status-badges">
+                      <span 
+                        className="form-type-badge"
+                        style={{ backgroundColor: getStatusColor(submissionDetails.formType) }}
+                      >
+                        <i className={`fas ${getFormTypeIcon(submissionDetails.formType)}`}></i>
+                        {submissionDetails.formType?.toUpperCase() || 'UNKNOWN'}
+                      </span>
+                      <span 
+                        className="status-badge"
+                        style={{ backgroundColor: getStatusColor(submissionDetails.status) }}
+                      >
+                        {submissionDetails.status || 'submitted'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="submission-details-grid">
+                  <div className="detail-item">
+                    <label>Full Name:</label>
+                    <span>{submissionDetails.fullName || 'Not provided'}</span>
+                  </div>
+                  
+                  <div className="detail-item">
+                    <label>Email:</label>
+                    <span>{submissionDetails.email || 'Not provided'}</span>
+                  </div>
+                  
+                  <div className="detail-item">
+                    <label>Phone Number:</label>
+                    <span>{submissionDetails.phoneNumber || 'Not provided'}</span>
+                  </div>
+                  
+                  <div className="detail-item">
+                    <label>Address:</label>
+                    <span>{submissionDetails.address || 'Not provided'}</span>
+                  </div>
+                  
+                  <div className="detail-item">
+                    <label>Birth Date:</label>
+                    <span>{submissionDetails.birthDate || 'Not provided'}</span>
+                  </div>
+                  
+                  <div className="detail-item">
+                    <label>AAA Membership ID:</label>
+                    <span>{submissionDetails.aaaMembershipId || 'Not provided'}</span>
+                  </div>
+                  
+                  <div className="detail-item">
+                    <label>Insurance Policy Number:</label>
+                    <span>{submissionDetails.insurancePolicyNumber || 'Not provided'}</span>
+                  </div>
+                  
+                  <div className="detail-item">
+                    <label>Owner Type:</label>
+                    <span>{submissionDetails.ownerType || 'Not provided'}</span>
+                  </div>
+                  
+                  {submissionDetails.ownerFullName && (
+                    <div className="detail-item">
+                      <label>Owner Full Name:</label>
+                      <span>{submissionDetails.ownerFullName}</span>
+                    </div>
+                  )}
+                  
+                  {submissionDetails.ownerPhone && (
+                    <div className="detail-item">
+                      <label>Owner Phone:</label>
+                      <span>{submissionDetails.ownerPhone}</span>
+                    </div>
+                  )}
+                  
+                  {submissionDetails.propertyType && (
+                    <div className="detail-item">
+                      <label>Property Type:</label>
+                      <span>{submissionDetails.propertyType}</span>
+                    </div>
+                  )}
+                  
+                  {submissionDetails.propertyAddress && (
+                    <div className="detail-item">
+                      <label>Property Address:</label>
+                      <span>{submissionDetails.propertyAddress}</span>
+                    </div>
+                  )}
+                  
+                  {submissionDetails.vin && (
+                    <div className="detail-item">
+                      <label>VIN:</label>
+                      <span>{submissionDetails.vin}</span>
+                    </div>
+                  )}
+                  
+                  <div className="detail-item">
+                    <label>Tech ID:</label>
+                    <span>{submissionDetails.techId || 'Not provided'}</span>
+                  </div>
+                  
+                  <div className="detail-item">
+                    <label>Payment Status:</label>
+                    <span className={submissionDetails.paymentStatus === 'completed' ? 'success' : 'error'}>
+                      {submissionDetails.paymentStatus || 'pending'}
+                    </span>
+                  </div>
+                  
+                  <div className="detail-item">
+                    <label>Submitted At:</label>
+                    <span>{formatDate(submissionDetails.submittedAt)}</span>
+                  </div>
+                </div>
+
+                {/* Attachments Section */}
+                <div className="attachments-section">
+                  <h3>Attachments</h3>
+                  <div className="attachments-grid">
+                    {submissionDetails.licenseFront && (
+                      <div className="attachment-item">
+                        <div className="attachment-preview">
+                          {submissionDetails.licenseFront.mimetype?.startsWith('image/') ? (
+                            <img 
+                              src={`data:${submissionDetails.licenseFront.mimetype};base64,${submissionDetails.licenseFront.data}`}
+                              alt="License Front"
+                              className="attachment-image"
+                            />
+                          ) : (
+                            <div className="attachment-icon">
+                              <i className="fas fa-id-card"></i>
+                            </div>
+                          )}
+                        </div>
+                        <div className="attachment-info">
+                          <span className="attachment-name">License Front</span>
+                          <span className="attachment-filename">{submissionDetails.licenseFront.originalname}</span>
+                          <span className="attachment-size">({(submissionDetails.licenseFront.size / 1024).toFixed(1)} KB)</span>
+                        </div>
+                        <button
+                          className="download-btn"
+                          onClick={() => downloadAttachment(submissionDetails._id, 'licenseFront', submissionDetails.licenseFront.originalname)}
+                          title="Download License Front"
+                        >
+                          <i className="fas fa-download"></i>
+                        </button>
+                      </div>
+                    )}
+                    
+                    {submissionDetails.licenseBack && (
+                      <div className="attachment-item">
+                        <div className="attachment-preview">
+                          {submissionDetails.licenseBack.mimetype?.startsWith('image/') ? (
+                            <img 
+                              src={`data:${submissionDetails.licenseBack.mimetype};base64,${submissionDetails.licenseBack.data}`}
+                              alt="License Back"
+                              className="attachment-image"
+                            />
+                          ) : (
+                            <div className="attachment-icon">
+                              <i className="fas fa-id-card"></i>
+                            </div>
+                          )}
+                        </div>
+                        <div className="attachment-info">
+                          <span className="attachment-name">License Back</span>
+                          <span className="attachment-filename">{submissionDetails.licenseBack.originalname}</span>
+                          <span className="attachment-size">({(submissionDetails.licenseBack.size / 1024).toFixed(1)} KB)</span>
+                        </div>
+                        <button
+                          className="download-btn"
+                          onClick={() => downloadAttachment(submissionDetails._id, 'licenseBack', submissionDetails.licenseBack.originalname)}
+                          title="Download License Back"
+                        >
+                          <i className="fas fa-download"></i>
+                        </button>
+                      </div>
+                    )}
+                    
+                    {submissionDetails.proofOfResidency && (
+                      <div className="attachment-item">
+                        <div className="attachment-preview">
+                          {submissionDetails.proofOfResidency.mimetype?.startsWith('image/') ? (
+                            <img 
+                              src={`data:${submissionDetails.proofOfResidency.mimetype};base64,${submissionDetails.proofOfResidency.data}`}
+                              alt="Proof of Residency"
+                              className="attachment-image"
+                            />
+                          ) : (
+                            <div className="attachment-icon">
+                              <i className="fas fa-home"></i>
+                            </div>
+                          )}
+                        </div>
+                        <div className="attachment-info">
+                          <span className="attachment-name">Proof of Residency</span>
+                          <span className="attachment-filename">{submissionDetails.proofOfResidency.originalname}</span>
+                          <span className="attachment-size">({(submissionDetails.proofOfResidency.size / 1024).toFixed(1)} KB)</span>
+                        </div>
+                        <button
+                          className="download-btn"
+                          onClick={() => downloadAttachment(submissionDetails._id, 'proofOfResidency', submissionDetails.proofOfResidency.originalname)}
+                          title="Download Proof of Residency"
+                        >
+                          <i className="fas fa-download"></i>
+                        </button>
+                      </div>
+                    )}
+                    
+                    {submissionDetails.registration && (
+                      <div className="attachment-item">
+                        <div className="attachment-preview">
+                          {submissionDetails.registration.mimetype?.startsWith('image/') ? (
+                            <img 
+                              src={`data:${submissionDetails.registration.mimetype};base64,${submissionDetails.registration.data}`}
+                              alt="Registration"
+                              className="attachment-image"
+                            />
+                          ) : (
+                            <div className="attachment-icon">
+                              <i className="fas fa-file-alt"></i>
+                            </div>
+                          )}
+                        </div>
+                        <div className="attachment-info">
+                          <span className="attachment-name">Registration</span>
+                          <span className="attachment-filename">{submissionDetails.registration.originalname}</span>
+                          <span className="attachment-size">({(submissionDetails.registration.size / 1024).toFixed(1)} KB)</span>
+                        </div>
+                        <button
+                          className="download-btn"
+                          onClick={() => downloadAttachment(submissionDetails._id, 'registration', submissionDetails.registration.originalname)}
+                          title="Download Registration"
+                        >
+                          <i className="fas fa-download"></i>
+                        </button>
+                      </div>
+                    )}
+                    
+                    {submissionDetails.licensePlate && (
+                      <div className="attachment-item">
+                        <div className="attachment-preview">
+                          {submissionDetails.licensePlate.mimetype?.startsWith('image/') ? (
+                            <img 
+                              src={`data:${submissionDetails.licensePlate.mimetype};base64,${submissionDetails.licensePlate.data}`}
+                              alt="License Plate"
+                              className="attachment-image"
+                            />
+                          ) : (
+                            <div className="attachment-icon">
+                              <i className="fas fa-car"></i>
+                            </div>
+                          )}
+                        </div>
+                        <div className="attachment-info">
+                          <span className="attachment-name">License Plate</span>
+                          <span className="attachment-filename">{submissionDetails.licensePlate.originalname}</span>
+                          <span className="attachment-size">({(submissionDetails.licensePlate.size / 1024).toFixed(1)} KB)</span>
+                        </div>
+                        <button
+                          className="download-btn"
+                          onClick={() => downloadAttachment(submissionDetails._id, 'licensePlate', submissionDetails.licensePlate.originalname)}
+                          title="Download License Plate"
+                        >
+                          <i className="fas fa-download"></i>
+                        </button>
+                      </div>
+                    )}
+                    
+                    {submissionDetails.insuranceProof && (
+                      <div className="attachment-item">
+                        <div className="attachment-preview">
+                          {submissionDetails.insuranceProof.mimetype?.startsWith('image/') ? (
+                            <img 
+                              src={`data:${submissionDetails.insuranceProof.mimetype};base64,${submissionDetails.insuranceProof.data}`}
+                              alt="Insurance Proof"
+                              className="attachment-image"
+                            />
+                          ) : (
+                            <div className="attachment-icon">
+                              <i className="fas fa-shield-alt"></i>
+                            </div>
+                          )}
+                        </div>
+                        <div className="attachment-info">
+                          <span className="attachment-name">Insurance Proof</span>
+                          <span className="attachment-filename">{submissionDetails.insuranceProof.originalname}</span>
+                          <span className="attachment-size">({(submissionDetails.insuranceProof.size / 1024).toFixed(1)} KB)</span>
+                        </div>
+                        <button
+                          className="download-btn"
+                          onClick={() => downloadAttachment(submissionDetails._id, 'insuranceProof', submissionDetails.insuranceProof.originalname)}
+                          title="Download Insurance Proof"
+                        >
+                          <i className="fas fa-download"></i>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {!submissionDetails.licenseFront && !submissionDetails.licenseBack && 
+                   !submissionDetails.proofOfResidency && !submissionDetails.registration && 
+                   !submissionDetails.licensePlate && !submissionDetails.insuranceProof && (
+                    <div className="no-attachments">
+                      <i className="fas fa-file-slash"></i>
+                      <p>No attachments available for this submission</p>
+                    </div>
+                  )}
+                </div>
               </div>
             </motion.div>
           </motion.div>
