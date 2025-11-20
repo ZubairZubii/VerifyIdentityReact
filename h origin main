@@ -1,0 +1,5 @@
+[33mf4d6474[m[33m ([m[1;36mHEAD -> [m[1;32mmain[m[33m)[m Fix TypeScript errors and update HomePage routing - Fix framer-motion easing types with 'as const' - Add proper typing for isVisible state - Update App.tsx to show HomePage as main route - Add new HomePage component with verification features
+[33m605dbef[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m Removendo senha
+[33me194d70[m Final front end
+[33mb97a536[m Update JoinPage.tsx
+[33m9853183[m Grass cut
